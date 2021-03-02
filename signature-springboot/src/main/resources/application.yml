@@ -1,0 +1,4 @@
+logging:
+  level:
+    com.ccbft: debug
+    org.springframework.web.reactive: debug
