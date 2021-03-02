@@ -19,8 +19,8 @@ public class SignatureUtils {
         return RandomStringUtils.randomAlphabetic(Config.NONCE_LENGTH);
     }
 
-    public static long generateTimestamp() {
-        return (new Date()).getTime() + Config.TIMESTAMP_BIAS;
+    public static String generateTimestamp() {
+        return String.valueOf((new Date()).getTime() + Config.TIMESTAMP_BIAS);
     }
 
     public static String buildBase64Md5(byte[] bytes) {
@@ -85,7 +85,7 @@ public class SignatureUtils {
      *
      */
     public static String buildBodyMd5(String contentType, String bodyString) {
-        if (!bodyString.startsWith("{}") && !contentType.startsWith(CONTENT_TYPE_URLENCODED)) {
+        if (StringUtils.isNotBlank(bodyString) && !bodyString.startsWith("{}") && !contentType.startsWith(CONTENT_TYPE_URLENCODED)) {
             return buildBase64Md5(bodyString);
         } else {
             return "";
@@ -134,14 +134,16 @@ public class SignatureUtils {
      * method always UpperCase
      * content md5 --> appkey
      */
-    public static String buildHeaders(String method, String contentType, String bodyString) {
+    public static String buildHeaders(String method, String contentType, String bodyString, String timeStamp, String nonce, String appKey) {
         StringJoiner stringJoiner = new StringJoiner(LF)
                 .add(method.toUpperCase())
                 .add(buildBodyMd5(contentType, bodyString))
                 .add(contentType)
-                .add(String.valueOf(generateTimestamp()))
-                .add(generateNonce())
-                .add(Config.appKey);
+                .add(timeStamp)
+                // .add(generateNonce())
+                // .add(Config.appKey);
+                .add(nonce)
+                .add(appKey);
         return stringJoiner.toString();
     }
 
@@ -204,12 +206,13 @@ public class SignatureUtils {
      * x-ca-signature-method:HmacSHA256
      * /sts/publicrs/oauth/login/jscode?h5Id=206893815594889216&workspaceId=test
      */
-    public static String buildSignature(String method, String path, String contentType, String bodyString, Map<String, String> headerAddons, Map<String, String> queries) {
+    public static String buildSignature(String nonce, String appKey, String timestamp, String method, String path, String contentType, String bodyString, Map<String, String> headerAddons, Map<String, String> queries) {
 
         SignatureAddons signatureAddons = buildHeaderAddons(headerAddons);
+        System.out.println(String.format("addons headers: %s", signatureAddons.getAddonsHeaders()));
         StringJoiner stringJoiner = new StringJoiner(LF)
-                .add(buildHeaders(method, contentType, bodyString))
-                .add(signatureAddons.getAddonsHeaders())
+                .add(buildHeaders(method, contentType, bodyString, timestamp, nonce, appKey) + signatureAddons.getAddonsHeaders())
+                // .add(signatureAddons.getAddonsHeaders())
                 .add(buildQueries(contentType, bodyString, path, queries));
         String tobeSign = stringJoiner.toString();
         System.out.println("------------- raw text to sign --------------\n" + tobeSign);
