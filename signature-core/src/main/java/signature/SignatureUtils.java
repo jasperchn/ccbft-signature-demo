@@ -2,12 +2,10 @@ package signature;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
-import signature.configurable.Config;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.UnsupportedEncodingException;
-import java.net.URI;
 import java.security.MessageDigest;
 import java.util.*;
 
@@ -15,12 +13,16 @@ import static signature.constants.Marker.*;
 
 public class SignatureUtils {
 
-    public static String generateNonce() {
-        return RandomStringUtils.randomAlphabetic(Config.NONCE_LENGTH);
+    public static String generateNonce(int length) {
+        return RandomStringUtils.randomAlphabetic(length);
+    }
+
+    public static String generateTimestamp(long bias) {
+        return String.valueOf((new Date()).getTime() + bias);
     }
 
     public static String generateTimestamp() {
-        return String.valueOf((new Date()).getTime() + Config.TIMESTAMP_BIAS);
+        return generateTimestamp(0L);
     }
 
     public static String buildBase64Md5(byte[] bytes) {
@@ -140,42 +142,10 @@ public class SignatureUtils {
                 .add(buildBodyMd5(contentType, bodyString))
                 .add(contentType)
                 .add(timeStamp)
-                // .add(generateNonce())
-                // .add(Config.appKey);
                 .add(nonce)
                 .add(appKey);
         return stringJoiner.toString();
     }
-
-    /**
-     * 服务端对x-ca-顺序没有排序要求
-     */
-    private static class SignatureAddons {
-        private String addonsHeaders;
-        private String addonsSignature;
-
-        public String getAddonsHeaders() {
-            return addonsHeaders;
-        }
-
-        public void setAddonsHeaders(String addonsHeaders) {
-            this.addonsHeaders = addonsHeaders;
-        }
-
-        public String getAddonsSignature() {
-            return addonsSignature;
-        }
-
-        public void setAddonsSignature(String addonsSignature) {
-            this.addonsSignature = addonsSignature;
-        }
-
-        public SignatureAddons(String addonsHeaders, String addonsSignature) {
-            this.addonsHeaders = addonsHeaders;
-            this.addonsSignature = addonsSignature;
-        }
-    }
-
 
     /**
      * 允许x-ca-开头的header参与计算，拓展位
@@ -206,17 +176,54 @@ public class SignatureUtils {
      * x-ca-signature-method:HmacSHA256
      * /sts/publicrs/oauth/login/jscode?h5Id=206893815594889216&workspaceId=test
      */
-    public static String buildSignature(String nonce, String appKey, String timestamp, String method, String path, String contentType, String bodyString, Map<String, String> headerAddons, Map<String, String> queries) {
-
+    public static String buildSignature(
+            String method,
+            String path,
+            String contentType,
+            String bodyString,
+            String timestamp,
+            String nonce,
+            String appKey,
+            String appSecret,
+            Map<String, String> headerAddons,
+            Map<String, String> queries) {
         SignatureAddons signatureAddons = buildHeaderAddons(headerAddons);
         System.out.println(String.format("addons headers: %s", signatureAddons.getAddonsHeaders()));
         StringJoiner stringJoiner = new StringJoiner(LF)
                 .add(buildHeaders(method, contentType, bodyString, timestamp, nonce, appKey) + signatureAddons.getAddonsHeaders())
-                // .add(signatureAddons.getAddonsHeaders())
                 .add(buildQueries(contentType, bodyString, path, queries));
         String tobeSign = stringJoiner.toString();
         System.out.println("------------- raw text to sign --------------\n" + tobeSign);
-        return sign(Config.appSecret, tobeSign);
+        return sign(appSecret, tobeSign);
+    }
+
+    /**
+     * 服务端对x-ca-顺序没有排序要求
+     */
+    private static class SignatureAddons {
+        private String addonsHeaders;
+        private String addonsSignature;
+
+        public SignatureAddons(String addonsHeaders, String addonsSignature) {
+            this.addonsHeaders = addonsHeaders;
+            this.addonsSignature = addonsSignature;
+        }
+
+        public String getAddonsHeaders() {
+            return addonsHeaders;
+        }
+
+        public void setAddonsHeaders(String addonsHeaders) {
+            this.addonsHeaders = addonsHeaders;
+        }
+
+        public String getAddonsSignature() {
+            return addonsSignature;
+        }
+
+        public void setAddonsSignature(String addonsSignature) {
+            this.addonsSignature = addonsSignature;
+        }
     }
 
 }

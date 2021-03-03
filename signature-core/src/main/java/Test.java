@@ -1,5 +1,4 @@
 import signature.SignatureUtils;
-import signature.configurable.Config;
 
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -9,11 +8,17 @@ import static signature.constants.HttpHeader.CA_HEADER_TO_SIGN_PREFIX;
 
 public class Test {
 
+    private static class Config {
+        public static final long TIMESTAMP_BIAS = 0;
+        public static final int NONCE_LENGTH = 31;
+        public static final String appKey = "common";
+        public static final String appSecret = "f554a080655952d8354d42d0ef1ec4b0175239e5";
+    }
+
     public static void main(String[] args) throws URISyntaxException {
-        // URI uri = new URI("http://11.10/usr/dda/djj?p1=v1&p2=v2");
         System.out.println("------------ default test ----------");
-        String timestamp = SignatureUtils.generateTimestamp();
-        String nonce = SignatureUtils.generateNonce();
+        String timestamp = SignatureUtils.generateTimestamp(Config.TIMESTAMP_BIAS);
+        String nonce = SignatureUtils.generateNonce(Config.NONCE_LENGTH);
         String method = "post";
         String path = "/usr/false/testing";
         String bodyType = "application/json";
@@ -29,7 +34,18 @@ public class Test {
             put("param3", "value3");
         }};
 
-        System.out.println(SignatureUtils.buildSignature(Config.appKey, nonce,timestamp, method, path, bodyType, bodyString, addons, queries));
-
+        System.out.println(
+                SignatureUtils.buildSignature(
+                        method,
+                        path,
+                        bodyType,
+                        bodyString,
+                        timestamp,
+                        nonce,
+                        Config.appKey,
+                        Config.appSecret,
+                        addons,
+                        queries
+                ));
     }
 }

@@ -1,6 +1,5 @@
 package com.ccbft.signaturespringboot.controller;
 
-
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -19,7 +18,6 @@ import org.springframework.web.util.DefaultUriBuilderFactory;
 import org.springframework.web.util.UriBuilderFactory;
 import reactor.core.publisher.Mono;
 import signature.SignatureUtils;
-import signature.configurable.Config;
 import signature.constants.HttpHeader;
 
 import java.net.URI;
@@ -34,6 +32,13 @@ import java.util.function.Consumer;
 public class SignatureController {
 
     private static final String host = "http://103.126.126.119:8002/phjr";
+
+    private static class Config {
+        public static final long TIMESTAMP_BIAS = 0;
+        public static final int NONCE_LENGTH = 31;
+        public static final String appKey = "common";
+        public static final String appSecret = "f554a080655952d8354d42d0ef1ec4b0175239e5";
+    }
 
     @Getter
     public enum UriMaps {
@@ -68,32 +73,32 @@ public class SignatureController {
         return r;
     }
 
-    private Mono<String> defaultGet(UriMaps uriMaps, String token, String authorization, ServerWebExchange webExchange){
+    private Mono<String> defaultGet(UriMaps uriMaps, Map<String, String> queries, String token, String authorization, ServerWebExchange webExchange){
         Assert.isTrue(HttpMethod.GET.equals(uriMaps.getHttpMethod()), "method must be GET");
         String[] auths = handleAuth(token, authorization);
 
-        // 计算签名
-        String timestamp = SignatureUtils.generateTimestamp();
-        String nonce = SignatureUtils.generateNonce();
-        Map<String, String> queries = new HashMap<String, String>() {{
-            put("param0", "value0");
-            put("param1", "value1");
-        }};
-
+        /**
+         * 计算签名
+         * */
+        String timestamp = SignatureUtils.generateTimestamp(Config.TIMESTAMP_BIAS);
+        String nonce = SignatureUtils.generateNonce(Config.NONCE_LENGTH);
         String signature = SignatureUtils.buildSignature(
-                nonce,
-                Config.appKey,
-                timestamp,
                 HttpMethod.GET.name(),
                 uriMaps.getRoute(),
                 "",
                 "",
+                timestamp,
+                nonce,
+                Config.appKey,
+                Config.appSecret,
                 Collections.emptyMap(),
                 queries
         );
-
         log.info("signature = {}", signature);
 
+        /**
+         * 放置Header
+         * */
         Consumer<HttpHeaders> headersConsumer = httpHeaders -> {
             httpHeaders.add(auths[0], auths[1]);
             httpHeaders.add(HttpHeader.HTTP_HEADER_NONCE, nonce);
@@ -104,7 +109,6 @@ public class SignatureController {
 
         UriBuilderFactory factory = new DefaultUriBuilderFactory();
         URI uri = factory.builder().host(host).path(uriMaps.getRoute()).queryParams(convertMultiple(queries)).build().normalize();
-
         return WebClient
                 .create(uri.getAuthority())
                 .get()
@@ -116,9 +120,18 @@ public class SignatureController {
                 });
     }
 
-
+    /**
+     * token为短token
+     * authorization为长token
+     * 二选一即可
+     * */
     @GetMapping("/test/get")
     public Mono<String> getTest_01(@RequestParam(required = false) String token, @RequestParam(required = false) String authorization, ServerWebExchange webExchange) {
-        return defaultGet(UriMaps.Test_GET_00, token, authorization, webExchange);
+        // queries是url参数
+        Map<String, String> queries = new HashMap<String, String>() {{
+            put("param0", "value0");
+            put("param1", "value1");
+        }};
+        return defaultGet(UriMaps.Test_GET_00, queries, token, authorization, webExchange);
     }
 }
