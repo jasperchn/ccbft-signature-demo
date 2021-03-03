@@ -34,7 +34,7 @@ public class Test {
             put("param3", "value3");
         }};
 
-        System.out.println(
+        SignatureUtils.SignatureInfo signatureInfo =
                 SignatureUtils.buildSignature(
                         method,
                         path,
@@ -46,6 +46,7 @@ public class Test {
                         Config.appSecret,
                         addons,
                         queries
-                ));
+                );
+        System.out.println(signatureInfo.toString());
     }
 }

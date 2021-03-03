@@ -83,9 +83,6 @@ public class SignatureUtils {
         }
     }
 
-    /**
-     *
-     */
     public static String buildBodyMd5(String contentType, String bodyString) {
         if (StringUtils.isNotBlank(bodyString) && !bodyString.startsWith("{}") && !contentType.startsWith(CONTENT_TYPE_URLENCODED)) {
             return buildBase64Md5(bodyString);
@@ -136,16 +133,17 @@ public class SignatureUtils {
      * method always UpperCase
      * content md5 --> appkey
      */
-    public static String buildHeaders(String method, String contentType, String bodyString, String timeStamp, String nonce, String appKey) {
+    public static String buildHeaders(String method, String contentType, String contentMd5, String timeStamp, String nonce, String appKey) {
         StringJoiner stringJoiner = new StringJoiner(LF)
                 .add(method.toUpperCase())
-                .add(buildBodyMd5(contentType, bodyString))
+                .add(contentMd5)
                 .add(contentType)
                 .add(timeStamp)
                 .add(nonce)
                 .add(appKey);
         return stringJoiner.toString();
     }
+
 
     /**
      * 允许x-ca-开头的header参与计算，拓展位
@@ -176,7 +174,30 @@ public class SignatureUtils {
      * x-ca-signature-method:HmacSHA256
      * /sts/publicrs/oauth/login/jscode?h5Id=206893815594889216&workspaceId=test
      */
-    public static String buildSignature(
+    public static class SignatureInfo {
+        private final String signature;
+        private final String contentDigest;
+
+        public SignatureInfo(String signature, String contentDigest) {
+            this.signature = signature;
+            this.contentDigest = contentDigest;
+        }
+
+        public String getSignature() {
+            return signature;
+        }
+
+        public String getContentDigest() {
+            return contentDigest;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("signature = %s, contentDigest = %s", signature, contentDigest);
+        }
+    }
+
+    public static SignatureInfo buildSignature(
             String method,
             String path,
             String contentType,
@@ -188,13 +209,15 @@ public class SignatureUtils {
             Map<String, String> headerAddons,
             Map<String, String> queries) {
         SignatureAddons signatureAddons = buildHeaderAddons(headerAddons);
+        String contentMd5 = buildBodyMd5(contentType, bodyString);
         System.out.println(String.format("addons headers: %s", signatureAddons.getAddonsHeaders()));
+        System.out.println(String.format("contentMd5: %s", contentMd5));
         StringJoiner stringJoiner = new StringJoiner(LF)
-                .add(buildHeaders(method, contentType, bodyString, timestamp, nonce, appKey) + signatureAddons.getAddonsHeaders())
+                .add(buildHeaders(method, contentType, contentMd5, timestamp, nonce, appKey) + signatureAddons.getAddonsHeaders())
                 .add(buildQueries(contentType, bodyString, path, queries));
         String tobeSign = stringJoiner.toString();
         System.out.println("------------- raw text to sign --------------\n" + tobeSign);
-        return sign(appSecret, tobeSign);
+        return new SignatureInfo(sign(appSecret, tobeSign), contentMd5);
     }
 
     /**
